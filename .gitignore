@@ -1,0 +1,15 @@
+*.o
+*.sym
+*.d
+*.asm
+_*
+*.out
+*.S
+*.img
+mkfs
+bootblock
+entryother
+initcode
+kernel
+//./tags
+//tags // why did these not work?

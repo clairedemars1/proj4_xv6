@@ -10,20 +10,18 @@ void assert(int claim){
 }
 
 void print_pstat(struct pstat* p){
-	//~ int inuse[NPROC];  // whether this slot of the process process table is in use (1 or 0)
-    //~ int pid[NPROC];    // the PID of each process
-    //~ int hticks[NPROC]; // the number of ticks each process has accumulated at priority 2
-    //~ int lticks[NPROC]; // the number of ticks each process has accumulated at priority 1
     int max_print = 10;
     //~ int max_print = NPROC;
     
     int i;
     for (i=0; i<max_print; i++){
-		printf(1, "inuse: %d, pid: %d, hticks %d, lticks %d\n",
-		 p->inuse[i], 
+		printf(1, "pid: %d, inuse: %d, priority: %d, hticks %d, lticks %d\n",
 		 p->pid[i],
+		 p->inuse[i],
+		 p->priority[i],
 		 p->hticks[i],
 		 p->lticks[i]);
+		 
 	}
 	printf(1, "\n");
 }
@@ -37,13 +35,19 @@ void error_tests(){
 	assert( setpri(0) == -1 );
 }
 
-int main(){
+void basic_test(){
 	struct pstat procs;
 	int ret = getpinfo(&procs);
 	printf(1, "return val: %d\n", ret);
 	print_pstat(&procs);
 	
-	error_tests();
+	setpri(2);
+}
+
+int main(){
+	basic_test();
+	
+	//~ error_tests();
 	
 	exit();
 }

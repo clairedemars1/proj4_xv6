@@ -121,7 +121,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-int				setpri(int num);
+void			setpri(int num);
 int				getpinfo(struct pstat*);
 
 // swtch.S

@@ -98,7 +98,8 @@ int sys_setpri(void){
 	if (n != 1 && n != 2){
 		return -1;
 	}
-	return setpri(n);
+	setpri(n);
+	return 0;
 }
 
 int sys_getpinfo(void){
@@ -112,6 +113,7 @@ int sys_getpinfo(void){
 	for(i=0; i<NPROC; i++){
 		info2->inuse[i] = 0;
 		info2->pid[i]= 0;
+		info2->priority[i] = 1;
 		info2->lticks[i]= 0;
 		info2->hticks[i]= 0;
 		

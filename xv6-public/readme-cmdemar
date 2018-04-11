@@ -1,0 +1,11 @@
+Claire DeMars
+Proj 3: 
+
+Scheduler
+	basic setup of system calls in regular files and sysproc.c
+	proc.h - new proc state (priority, time_last_changed, lticks, hticks)
+	proc.c - Initialization of new proc state in allocproc(). 
+		Implemented syscalls 
+
+
+File System Checking

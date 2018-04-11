@@ -92,6 +92,15 @@ found:
 
   release(&ptable.lock);
 
+  //initialize priority tracking info
+  p->priority = 1;
+  p->ticks_at_each_priority[0] = 0;
+  p->ticks_at_each_priority[1] = 0;
+  acquire(&tickslock);
+    p->time_last_changed = ticks;
+  release(&tickslock);
+  
+  
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
@@ -534,17 +543,34 @@ procdump(void)
   }
 }
 
-int setpri(int num){
-	return 0;
+void update_time_spent_at_curr_priority(){
+	struct proc* p = myproc();
+	int curr_priority = p->priority;
+	acquire(&tickslock);
+		(p->ticks_at_each_priority[curr_priority-1]) += (ticks - p->time_last_changed);  // ticks counters
+	release(&tickslock);
+}
+
+void setpri(int new_priority){
+	update_time_spent_at_curr_priority();
+	
+	// update priority
+	myproc()->priority = new_priority;
 }
 
 int getpinfo(struct pstat* info){
 	int count = 0;
 	struct proc* p;
 	
+	update_time_spent_at_curr_priority();
+	
     acquire(&ptable.lock);
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 		info->pid[count] = p->pid;
+		info->priority[count] = p->priority;
+		info->inuse[count] = (p->state != UNUSED);
+		info->lticks[count] = p->ticks_at_each_priority[0];
+		info->hticks[count] = p->ticks_at_each_priority[1];
 		count++;
 	}
 	release(&ptable.lock);

@@ -296,6 +296,8 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
+		cprintf("cleaning up a zombie with pid %d\n", p->pid);
+
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
@@ -575,5 +577,5 @@ int getpinfo(struct pstat* info){
 	}
 	release(&ptable.lock);
 	 
-	return 0; // todo
+	return 0;
 }

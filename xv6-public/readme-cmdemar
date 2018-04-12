@@ -6,6 +6,9 @@ Scheduler
 	proc.h - new proc state (priority, time_last_changed, lticks, hticks)
 	proc.c - Initialization of new proc state in allocproc(). 
 		Implemented syscalls 
+	test.c
+		- i added info to the pstat, to say what priority each process was, and checked I could set it correctly
+		- checked the return values are 
 
 
 File System Checking

@@ -1,14 +1,23 @@
 Claire DeMars
-Proj 3: 
+Proj 3
 
 Scheduler
 	basic setup of system calls in regular files and sysproc.c
 	proc.h - new proc state (priority, time_last_changed, lticks, hticks)
 	proc.c - Initialization of new proc state in allocproc(). 
-		Implemented syscalls 
+		Implemented syscalls. Each updates the lticks and hticks based on the time_last_changed.
+		The ptable knows which priority of processes it should run (ptable.priority_mode). This is 
+		set to 2 when a proc calls setpri(2) or when the scheduler finds a proc with priority 2 (not sure why the second is
+		necessary, but it didn't work otherwise). It is set to 1 when it 
+		is initialized or when a full pass of the ptable is completed where no runnable proc of
+		priority 2 was found. 
+		The scheduler function now not only checks if there is a runnable process, 
+		but if that process is the right priority. 
+
 	test.c
 		- i added info to the pstat, to say what priority each process was, and checked I could set it correctly
-		- checked the return values are 
+		- checked the return values for the sys calls
+		- checked that a higher priority process did run before a low priority one
 
 
 File System Checking

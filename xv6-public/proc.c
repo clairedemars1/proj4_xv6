@@ -11,6 +11,7 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  int priority_mode; // which priority of processes to schedule 
 } ptable;
 
 static struct proc *initproc;
@@ -25,6 +26,7 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  ptable.priority_mode = 1;
 }
 
 // Must be called with interrupts disabled
@@ -296,7 +298,7 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
-		cprintf("cleaning up a zombie with pid %d\n", p->pid);
+		//~ cprintf("cleaning up a zombie with pid %d\n", p->pid);
 
         pid = p->pid;
         kfree(p->kstack);
@@ -338,32 +340,47 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
   
+  int there_is_a_high_priority_process = 0; // flag, relative to a pass through the ptable
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+	
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+	if (!there_is_a_high_priority_process){
+		ptable.priority_mode = 1;
+	}
+	there_is_a_high_priority_process = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+		if (ptable.priority_mode == 2){
+			//~ cprintf("mode is 2\n");
+		}
+		
+		if (  p->priority == 2 
+			&& ( p->state == RUNNABLE || p->state == SLEEPING ) ){ // necessary or zombie high priority child can block low priority parent from running
+				there_is_a_high_priority_process = 1;
+				//~ cprintf("priority mode should be 2 but is %d\n", ptable.priority_mode);
+				ptable.priority_mode = 2; // why necessary? 
+		}
+		if(p->state != RUNNABLE ||  p->priority != ptable.priority_mode){ 
+		  continue;
+		}	
+		
+		// Switch to chosen process.  It is the process's job
+		// to release ptable.lock and then reacquire it
+		// before jumping back to us.
+		c->proc = p;
+		switchuvm(p);
+		p->state = RUNNING;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+		swtch(&(c->scheduler), p->context);
+		switchkvm();
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
     }
     release(&ptable.lock);
-
   }
 }
 
@@ -555,9 +572,15 @@ void update_time_spent_at_curr_priority(){
 
 void setpri(int new_priority){
 	update_time_spent_at_curr_priority();
-	
-	// update priority
 	myproc()->priority = new_priority;
+
+	acquire(&ptable.lock);
+	if( new_priority == 2){
+		ptable.priority_mode = 2;
+		cprintf("set priority_mode to 2\n");
+	}
+	release(&ptable.lock);
+	
 }
 
 int getpinfo(struct pstat* info){

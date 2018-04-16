@@ -65,19 +65,27 @@ void set_priority_to_value_it_already_had(){
 	print_pstat(&procs);
 }
 
+void helper_get_and_print_pstat(){
+	struct pstat procs;
+	getpinfo(&procs);
+	print_pstat(&procs);
+}
+
 void high_priority_runs_first(){
 	int pid = fork();
 	if (pid == 0){ // child
 		setpri(2);
-		printf(1, "I am high priority: I'm going to to sleep, and low priority has to wait.\n");
-		sleep(5);
-		printf(1, "high priority done\n");
+		sleep(5);  // parent should wait, since parent is lower priority
+		printf(1, "high priority done (should happen first)\n");
 		exit();
 	} else { // parent
-		printf(1, "LOW PRIORITY DONE\n");
+		sleep(2); // sleep, to give child a chance to be given higher priority
+		//~ helper_get_and_print_pstat();
+		printf(1, "LOW PRIORITY DONE (SHOULD HAPPEN SECOND) \n");
+		wait();
 	}
 	
-	// failing test case: parent runs before child, and exits, and we have a zombie process
+	// failing test case: parent and child take turns running, implying scheduling did not happen
 }
 
 int main(){

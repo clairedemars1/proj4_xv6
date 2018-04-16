@@ -107,7 +107,7 @@ int sys_getpinfo(void){
 	if ( argptr(0, &info, sizeof(struct pstat) ) < 0 ){
 		return -1;
 	}
-	struct pstat* info2 = (struct pstat*) info;
+	struct pstat* info2 = (struct pstat*) info; // switch it from a char*
 	// initialize the struct
 	int i;
 	for(i=0; i<NPROC; i++){

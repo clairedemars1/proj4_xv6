@@ -2,7 +2,7 @@ Claire DeMars
 Proj 3
 
 Scheduler
-	basic setup of system calls in regular files and sysproc.c
+	basic setup of system calls in regular files and sysproc.c The sysproc.c versions manage error return values
 	proc.h - new proc state (priority, time_last_changed, lticks, hticks)
 	proc.c - Initialization of new proc state in allocproc(). 
 		Implemented syscalls. Each updates the lticks and hticks based on the time_last_changed.

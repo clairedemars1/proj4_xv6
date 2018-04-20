@@ -152,6 +152,9 @@ _forktest: forktest.o $(ULIB)
 
 mkfs: mkfs.c fs.h
 	gcc -Werror -Wall -o mkfs mkfs.c
+	
+fscheck: fscheck.c fs.h
+	gcc -Werror -Wall -o fscheck fscheck.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -186,7 +189,7 @@ clean:
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock entryother \
 	initcode initcode.out kernel xv6.img fs.img kernelmemfs mkfs \
-	.gdbinit \
+	.gdbinit fscheck \
 	$(UPROGS)
 
 # make a printout
@@ -247,7 +250,7 @@ EXTRA=\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
-	.gdbinit.tmpl gdbutil\
+	.gdbinit.tmpl gdbutil fscheck.c \
 
 dist:
 	rm -rf dist

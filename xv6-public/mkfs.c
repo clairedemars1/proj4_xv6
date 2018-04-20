@@ -70,7 +70,7 @@ main(int argc, char *argv[])
   int i, cc, fd;
   uint rootino, inum, off;
   struct dirent de;
-  char buf[BSIZE];
+  char buf[BSIZE]; // me: a buffer one-block big
   struct dinode din;
 
 

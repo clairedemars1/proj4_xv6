@@ -17,16 +17,16 @@ struct superblock {
   uint ninodes;      // Number of inodes.
   uint nlog;         // Number of log blocks
   uint logstart;     // Block number of first log block
-  uint inodestart;   // Block number of first inode block
+  uint inodestart;   // Block number of first inode block // LOOK HERE
   uint bmapstart;    // Block number of first free map block
 };
 
-#define NDIRECT 12
-#define NINDIRECT (BSIZE / sizeof(uint))
-#define MAXFILE (NDIRECT + NINDIRECT)
+#define NDIRECT 12 // me: i guess every file gets 12 direct data blocks no matter what
+#define NINDIRECT (BSIZE / sizeof(uint)) // me: number of pointers we can fit in a block
+#define MAXFILE (NDIRECT + NINDIRECT) // max number of blocks in a file // so i guess the file gets a 13th block of indirect pointers?
 
 // On-disk inode structure
-struct dinode {
+struct dinode { // me: d for disk
   short type;           // File type
   short major;          // Major device number (T_DEV only)
   short minor;          // Minor device number (T_DEV only)
@@ -38,7 +38,7 @@ struct dinode {
 // Inodes per block.
 #define IPB           (BSIZE / sizeof(struct dinode))
 
-// Block containing inode i
+// Block containing inode i // must pass it sb, the superblock
 #define IBLOCK(i, sb)     ((i) / IPB + sb.inodestart)
 
 // Bitmap bits per block
@@ -50,8 +50,8 @@ struct dinode {
 // Directory is a file containing a sequence of dirent structures.
 #define DIRSIZ 14
 
-struct dirent {
-  ushort inum;
+struct dirent { // directory entry
+  ushort inum; // me: inode number for that file
   char name[DIRSIZ];
 };
 

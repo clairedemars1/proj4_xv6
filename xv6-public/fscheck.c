@@ -43,28 +43,7 @@ void rsect(uint sec, void *buf);
 //~ uint ialloc(ushort type);
 //~ void iappend(uint inum, void *p, int n);
 
-
 // end section
-
-//~ // section: for mmap, from https://techoverflow.net/2013/08/21/a-simple-mmap-readonly-example/
-//~ #include <sys/mman.h>
-//~ #include <sys/types.h>
-//~ #include <fcntl.h>
-//~ #include <unistd.h>
-//~ #include <sys/stat.h>
-//~ #include <assert.h>
-//~ /**
- //~ * Get the size of a file.
- //~ * @return The filesize, or 0 if the file does not exist.
- //~ */
-//~ size_t getFilesize(const char* filename) {
-    //~ struct stat st;
-    //~ if(stat(filename, &st) != 0) {
-        //~ return 0;
-    //~ }
-    //~ return st.st_size;   
-//~ }
-//~ // end section
 
 int fsfd; // stupid global variable
 
@@ -78,30 +57,37 @@ main(int argc, char *argv[]){
 	}
 	
 	// open file
-    //~ size_t filesize = getFilesize(argv[1]);
-    //~ int fd = open(argv[1], O_RDONLY, 0);
-    //~ assert(fd != -1);
     fsfd = open(argv[1], O_RDONLY, 0666);
 	assert(fsfd != -1);
 	struct superblock sb;
-	rsect(1, (void*) &sb); // f***ing globally accesses the fsfd
+	rsect(1, (void*) &sb); // 1 is block number 
 	printf("size: %d, nblocks %d\n", sb.size, sb.nblocks);
-    
-    //read file
-    //~ void* mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
-    //~ assert(mmappedData != MAP_FAILED);
-    //Write the mmapped data to stdout (= FD #1)
-    //~ write(1, mmappedData, 1000); // prints something, which is a good sign
-    
-    
-	//~ Each inode is either unallocated or one of the valid types (T_FILE,
-	//~ T_DIR, T_DEV). ERROR: bad inode.
-	// find superblock
-	// use superblock to find start of inodes
-	// go number of inodes, for each checking if it is 0 or the appropriate type
-	// get beginning address
-	// go forward one block size
-	
+	uint block_num_of_first_inode = sb.inodestart;
+	uint block_num_just_after_inodes = sb.bmapstart;
+	uint i;
+	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ // for each block of inodes
+		printf("%d, %d", block_num_of_first_inode, block_num_just_after_inodes);
+		char buf[BSIZE];
+		rsect(i, (void*) &buf);
+		struct dinode* inode_p = (struct dinode *) &buf;
+		for( ; inode_p < (inode_p + IPB); inode_p++){ // for each inode // pointer arithmetic, does it work 
+			//~ Each inode is either unallocated or one of the valid types (T_FILE, T_DIR, T_DEV). ERROR: bad inode.
+			short type = inode_p->type;
+			if (type == T_FILE ){
+				// for each direct data block (do indirects later)
+				// it is in the 
+				printf("file\t");
+			} else if (type == T_DEV || type == T_DIR ){
+				printf("dev or dir\t");
+			} else if (type != 0) {
+				printf("type: %d\t", type);
+				printf("ERROR: bad inode\n");
+				//~ exit(1); // WHY?
+			}
+		}	
+	}
+	//~ uint ninodes = sb.ninodes; // number of inodes
+
 	//~ For in-use inodes, each address that is used by inode is valid (points to
 	//~ a valid datablock address within the image). Note: must check indirect
 	//~ blocks too, when they are in use. ERROR: bad address in inode.
@@ -131,17 +117,16 @@ main(int argc, char *argv[]){
 	//~ one other directory). ERROR: directory appears more than once in
 	//~ file system.
     
-    // mmap stuff
-    //Cleanup
-    //~ int rc = munmap(mmappedData, filesize);
-    //~ assert(rc == 0);
-    //~ close(fd);
-    
     close(fsfd);
 
 	exit(0);
 	return 0;
-	
+
+    //~ void* mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
+    //~ assert(mmappedData != MAP_FAILED);
+    //Write the mmapped data to stdout (= FD #1)
+    //~ write(1, mmappedData, 1000); // prints something, which is a good sign
+    
 }
 
 // sec=sector number, buf=to

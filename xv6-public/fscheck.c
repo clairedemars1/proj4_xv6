@@ -61,16 +61,17 @@ main(int argc, char *argv[]){
 	assert(fsfd != -1);
 	struct superblock sb;
 	rsect(1, (void*) &sb); // 1 is block number 
-	printf("size: %d, nblocks %d\n", sb.size, sb.nblocks);
+	//~ printf("size: %d, nblocks %d\n", sb.size, sb.nblocks);
 	uint block_num_of_first_inode = sb.inodestart;
 	uint block_num_just_after_inodes = sb.bmapstart;
 	uint i;
 	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ // for each block of inodes
-		printf("%d, %d", block_num_of_first_inode, block_num_just_after_inodes);
 		char buf[BSIZE];
 		rsect(i, (void*) &buf);
 		struct dinode* inode_p = (struct dinode *) &buf;
-		for( ; inode_p < (inode_p + IPB); inode_p++){ // for each inode // pointer arithmetic, does it work 
+		//~ for( ; inode_p < (inode_p + IPB); inode_p++){ // for each inode // pointer arithmetic, does it work 
+		short counter;
+		for(counter=0; counter < IPB; counter++){ // for each inode // pointer arithmetic, does it work 
 			//~ Each inode is either unallocated or one of the valid types (T_FILE, T_DIR, T_DEV). ERROR: bad inode.
 			short type = inode_p->type;
 			if (type == T_FILE ){
@@ -78,12 +79,15 @@ main(int argc, char *argv[]){
 				// it is in the 
 				printf("file\t");
 			} else if (type == T_DEV || type == T_DIR ){
-				printf("dev or dir\t");
+				printf("dev/dir\t");
+			//~ } else if (type == 0){
+				//~ printf("0\t");
 			} else if (type != 0) {
 				printf("type: %d\t", type);
-				printf("ERROR: bad inode\n");
-				//~ exit(1); // WHY?
+				printf("ERROR: bad inode\n"); 
+				exit(1); 
 			}
+			inode_p++;
 		}	
 	}
 	//~ uint ninodes = sb.ninodes; // number of inodes

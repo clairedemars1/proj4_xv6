@@ -48,6 +48,8 @@ void rsect(uint sec, void *buf);
 int inode_is_valid_or_unalloc(short type);
 int datablock_address_is_valid(uint addr, struct superblock* sb);
 int fsfd; // stupid global variable
+struct superblock sb;
+char temp_buf[BSIZE];
 
 int
 main(int argc, char *argv[]){
@@ -59,32 +61,31 @@ main(int argc, char *argv[]){
 	}
 	
 	// open file
-    fsfd = open(argv[1], O_RDONLY, 0666);
+    fsfd = open(argv[1], O_RDONLY);
 	assert(fsfd != -1);
-	struct superblock sb;
-	rsect(1, (void*) &sb); // 1 is block number 
+	rsect(1, (void*) &temp_buf); // 1 is block number 
+	memmove( &sb, &temp_buf, sizeof(sb) ); // keeps rsect from failing (as opposed to rsect(1, (void*) &sb);
 	uint block_num_of_first_inode = sb.inodestart;
 	uint block_num_just_after_inodes = sb.bmapstart;
 	uint i;
 	
 	struct dinode first_inode;
 	rinode(1, &first_inode);
-	printf("%d\t, ", first_inode.type);
 	if (first_inode.type != T_DIR){
+		// Root directory exists, and it is inode number 1.
 		printf("ERROR: root directory does not exist\n");
 		exit(1);
 	}
 	
 	// for each block of inodes
 	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ 
-		
-		// for each inode
 		char buf[BSIZE];
 		rsect(i, (void*) &buf);
 		struct dinode* inode_p = (struct dinode *) &buf;
 		//~ for( ; inode_p < (inode_p + IPB); inode_p++){  // pointer arithmetic fails
 		short counter;
-		for(counter=0; counter < IPB; counter++){ // for each inode 
+		// for each inode
+		for(counter=0; counter < IPB; counter++){ 
 			short type = inode_p->type;
 			if ( !inode_is_valid_or_unalloc(type) ){
 				printf("ERROR: bad inode\n"); 
@@ -124,11 +125,7 @@ main(int argc, char *argv[]){
 			inode_p++;
 		}	
 	}
-	//~ uint ninodes = sb.ninodes; // number of inodes
 
-	//~ 
-	//~ Root directory exists, and it is inode number 1. ERROR MESSAGE:
-	//~ root directory does not exist.
 	//~ Each directory contains . and .. entries. ERROR: directory not
 	//~ properly formatted.
 	//~ Each .. entry in directory refers to the proper parent inode, and parent
@@ -189,6 +186,7 @@ rsect(uint sec, void *buf)
   }
 }
 
+// global vars: sb
 // inum = number of the inode, ip is pointer a struct dinode to put it in
 void
 rinode(uint inum, struct dinode *ip)
@@ -198,6 +196,7 @@ rinode(uint inum, struct dinode *ip)
   struct dinode *dip;
 
   bn = IBLOCK(inum, sb);
+  printf("inode block num: %d\n", bn);
   rsect(bn, buf);
   dip = ((struct dinode*)buf) + (inum % IPB);
   *ip = *dip;

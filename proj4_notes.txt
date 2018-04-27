@@ -1,13 +1,13 @@
-to check if an inode has .. and ., do I need to go to it's data blocks, even indirect data blocks
+Questions:
 
-for root direcotyr, do i just need to check it's a directory? 
-the inode 1 for me is unallocated, what's up?
-
-why am i seg faulting when checking indirect datablock addresses?
-
-ask nick what he meant about
-"""I've found that pointer stuff is wonky
-Like, memmove gave me stable results
-Instead of implicit struct copies"""
+to check if an inode has .. and . do I need to go to all it's data blocks, even indirect data blocks
 
 ask them check my ranges
+
+Answers:
+A: how to make new directories and files
+mkdir mydir
+cd mydir
+../echo "foo" > myfile.txt
+../cat myfile.txt // to check it's content
+

@@ -63,8 +63,8 @@ main(int argc, char *argv[]){
 	// open file
     fsfd = open(argv[1], O_RDONLY);
 	assert(fsfd != -1);
-	rsect(1, (void*) &temp_buf); // 1 is block number 
-	memmove( &sb, &temp_buf, sizeof(sb) ); // keeps rsect from failing (as opposed to rsect(1, (void*) &sb);
+	rsect(1, (void*) temp_buf); // 1 is block number 
+	memmove( &sb, temp_buf, sizeof(sb) ); // keeps rsect from failing (as opposed to rsect(1, (void*) &sb);
 	uint block_num_of_first_inode = sb.inodestart;
 	uint block_num_just_after_inodes = sb.bmapstart;
 	uint i;
@@ -80,9 +80,8 @@ main(int argc, char *argv[]){
 	// for each block of inodes
 	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ 
 		char buf[BSIZE];
-		rsect(i, (void*) &buf);
-		struct dinode* inode_p = (struct dinode *) &buf;
-		//~ for( ; inode_p < (inode_p + IPB); inode_p++){  // pointer arithmetic fails
+		rsect(i, (void*) buf);
+		struct dinode* inode_p = (struct dinode *) buf;
 		short counter;
 		// for each inode
 		for(counter=0; counter < IPB; counter++){ 
@@ -95,29 +94,29 @@ main(int argc, char *argv[]){
 					struct dirent* dentry = (struct dirent* ) inode_p;
 					int j;
 					// do i have to go to each data block and go through all it's dirents?
+					printf("found dir\n");
 				}
 				
 				// check data block addresses are valid
+				// direct blocks
 				uint* addrs = inode_p->addrs;
 				int j;
 				for (j=0; j < (NDIRECT + 1); j++){
-					//~ printf("%d\t", addrs[j]);
 					if ( !datablock_address_is_valid(addrs[j], &sb) ){
 						printf("ERROR: bad address in inode");
 						exit(1);
 					}
 				}
-				uint* indirect_block = (uint*) addrs[NDIRECT]; // pointer to a pseudo-pointer
+				// indirect blocks
+				uint indirect_block_num = (uint) addrs[NDIRECT]; // block number, not pointer
+				uint indir_block[BSIZE]; // char = 8 bits, uint = 4 bits
+				rsect(indirect_block_num, indir_block);
 				int k;
 				for(k=0; k < NINDIRECT; k++){
-						//~ printf("%d\t", k);
-						
-						//~ printf("%d\t", indirect_block[k]); // why seg fault
-						
-					//~ if ( !datablock_address_is_valid( indirect_block[k], &sb) ){
-						//~ printf("ERROR: bad address in inode");
-						//~ exit(1);
-					//~ }
+					if ( !datablock_address_is_valid( indir_block[k], &sb) ){
+						printf("ERROR: bad address in inode\n");
+						exit(1);
+					}
 				}
 			}
 			
@@ -162,8 +161,9 @@ main(int argc, char *argv[]){
     
 }
 
+// "address" in the sense of block number, as opposed to a byte number
 int datablock_address_is_valid(uint addr, struct superblock* sb){
-	uint range_start = sb->bmapstart+1; // byte number (ie address)
+	uint range_start = sb->bmapstart+1; // not byte number, block number
 	uint range_end = sb->size - 1;
 				
 	return addr == 0 || ( addr >= range_start && addr <= range_end ); 

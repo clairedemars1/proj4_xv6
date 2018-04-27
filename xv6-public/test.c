@@ -27,6 +27,7 @@ void print_pstat(struct pstat* p){
 void return_vals(){
 	// getpinfo
 	//~ assert( getpinfo(0) == -1 ); // messes up
+	
 	//~ int i = 3;
 	//~ assert( getpinfo( (struct pstat*) &i) == -1); // works fine, but maybe shouldn't work
 	struct pstat procs;

@@ -47,12 +47,17 @@ void rsect(uint sec, void *buf);
 
 int inode_is_valid_or_unalloc(short type);
 int datablock_address_is_valid(uint addr, struct superblock* sb);
-int fsfd; // stupid global variable
+void update_inode_ref_counts_checker(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_checker);
+	// based on the directory entries in the inodes
+
+int fsfd; 
 struct superblock sb;
 char temp_buf[BSIZE];
 
+
 int
 main(int argc, char *argv[]){
+	uint* inode_ref_counts_checker;
 	
 	// check args
 	if(argc < 2){
@@ -63,12 +68,17 @@ main(int argc, char *argv[]){
 	// open file
     fsfd = open(argv[1], O_RDONLY);
 	assert(fsfd != -1);
+	
+	// initialize superblock
 	rsect(1, (void*) temp_buf); // 1 is block number 
 	memmove( &sb, temp_buf, sizeof(sb) ); // keeps rsect from failing (as opposed to rsect(1, (void*) &sb);
 	uint block_num_of_first_inode = sb.inodestart;
 	uint block_num_just_after_inodes = sb.bmapstart;
-	uint i;
 	
+	// initialize bitmap-like structures to enable checking
+	inode_ref_counts_checker = (uint*) malloc(sb.ninodes* sizeof(uint));
+	
+	// root directory 
 	struct dinode first_inode;
 	rinode(1, &first_inode);
 	if (first_inode.type != T_DIR){
@@ -78,6 +88,7 @@ main(int argc, char *argv[]){
 	}
 	
 	// for each block of inodes
+	uint i;
 	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ 
 		char buf[BSIZE];
 		rsect(i, (void*) buf);
@@ -89,23 +100,20 @@ main(int argc, char *argv[]){
 			if ( !inode_is_valid_or_unalloc(type) ){
 				printf("ERROR: bad inode\n"); 
 				exit(1);  
-			} else if ( type != 0 ) { // inode is valid and allocated
-				if( type == T_DIR ){
-					struct dirent* dentry = (struct dirent* ) inode_p;
-					int j;
-					// do i have to go to each data block and go through all it's dirents?
-					printf("found dir\n");
-				}
+			} else if ( type != 0 ) { // inode is valid and unallocated
+				// check data blocks are within range
 				
+				/// section: data blocks
 				// check data block addresses are valid
 				// direct blocks
 				uint* addrs = inode_p->addrs;
 				int j;
 				for (j=0; j < (NDIRECT + 1); j++){
 					if ( !datablock_address_is_valid(addrs[j], &sb) ){
-						printf("ERROR: bad address in inode");
+						printf("ERROR: bad address in inode\n");
 						exit(1);
 					}
+					//~ printf("data block num %d\t", addrs[j]);
 				}
 				// indirect blocks
 				uint indirect_block_num = (uint) addrs[NDIRECT]; // block number, not pointer
@@ -118,11 +126,29 @@ main(int argc, char *argv[]){
 						exit(1);
 					}
 				}
+				/// end section: data blocks
+				
+				if( type == T_DIR ){
+					printf("found dir\n");
+					
+					// only look at as many dirents as size dictates
+					uint inode_size = inode_p->size;
+					uint num_of_dir_entries = inode_size / sizeof(struct dirent); // int division is fine, since you can't store part of a dirent
+					uint dirent_num;
+					for (dirent_num=0; dirent_num < num_of_dir_entries; dirent_num++){
+						update_inode_ref_counts_checker(dirent_num, inode_p, inode_ref_counts_checker);
+					}
+				} // endif type == T_DIR
 			}
 			
 			// increment pointer
 			inode_p++;
-		}	
+		}
+	} // end for blocks of inodes
+	
+	printf("ref counts\n");
+	for (i=0; i<sb.ninodes; i++){
+		printf("%d\t", inode_ref_counts_checker[i]);
 	}
 
 	//~ Each directory contains . and .. entries. ERROR: directory not
@@ -161,6 +187,23 @@ main(int argc, char *argv[]){
     
 }
 
+void update_inode_ref_counts_checker(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_checker){
+	// go to that dirent
+	uint num_entries_per_block = BSIZE/sizeof(struct dirent);
+	uint addrs_index = dirent_num/(num_entries_per_block);
+	char buf[BSIZE];
+	
+	rsect(inode_p->addrs[addrs_index], buf);
+	
+	uint offset = dirent_num % num_entries_per_block;
+	struct dirent* buf2 = (struct dirent*) buf;
+	//~ printf("%s %d; ", buf2[offset].name, buf2[offset].inum); // . .. README cat echo forktest grep init kill ln ls mkdir rm sh stressfs usertests wc zombie test  
+	// see which inode num it is pointing to
+	// ++ the ref count for that inode
+	inode_ref_counts_checker[ buf2[offset].inum ]++; // inode_ref_counts_checker[0] gets a lot of increments, but there is no inode number 0 
+}
+
+
 // "address" in the sense of block number, as opposed to a byte number
 int datablock_address_is_valid(uint addr, struct superblock* sb){
 	uint range_start = sb->bmapstart+1; // not byte number, block number
@@ -196,7 +239,7 @@ rinode(uint inum, struct dinode *ip)
   struct dinode *dip;
 
   bn = IBLOCK(inum, sb);
-  printf("inode block num: %d\n", bn);
+  //~ printf("inode block num: %d\n", bn);
   rsect(bn, buf);
   dip = ((struct dinode*)buf) + (inum % IPB);
   *ip = *dip;

@@ -38,7 +38,7 @@ uint freeblock;
 //~ void balloc(int);
 //~ void wsect(uint, void*);
 //~ void winode(uint, struct dinode*);
-//~ void rinode(uint inum, struct dinode *ip);
+void rinode(uint inum, struct dinode *ip);
 void rsect(uint sec, void *buf);
 //~ uint ialloc(ushort type);
 //~ void iappend(uint inum, void *p, int n);
@@ -46,6 +46,7 @@ void rsect(uint sec, void *buf);
 // end section
 
 int inode_is_valid_or_unalloc(short type);
+int datablock_address_is_valid(uint addr, struct superblock* sb);
 int fsfd; // stupid global variable
 
 int
@@ -62,10 +63,17 @@ main(int argc, char *argv[]){
 	assert(fsfd != -1);
 	struct superblock sb;
 	rsect(1, (void*) &sb); // 1 is block number 
-	//~ printf("size: %d, nblocks %d\n", sb.size, sb.nblocks);
 	uint block_num_of_first_inode = sb.inodestart;
 	uint block_num_just_after_inodes = sb.bmapstart;
 	uint i;
+	
+	struct dinode first_inode;
+	rinode(1, &first_inode);
+	printf("%d\t, ", first_inode.type);
+	if (first_inode.type != T_DIR){
+		printf("ERROR: root directory does not exist\n");
+		exit(1);
+	}
 	
 	// for each block of inodes
 	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ 
@@ -82,28 +90,43 @@ main(int argc, char *argv[]){
 				printf("ERROR: bad inode\n"); 
 				exit(1);  
 			} else if ( type != 0 ) { // inode is valid and allocated
-				// 
-				uint range_start = sb.bmapstart+1; // byte number (ie address)
-				uint range_end = sb.size - 1;
+				if( type == T_DIR ){
+					struct dirent* dentry = (struct dirent* ) inode_p;
+					int j;
+					// do i have to go to each data block and go through all it's dirents?
+				}
 				
-				uint* addrs = inode_p->addrs; // length is NDIRECT + 1
+				// check data block addresses are valid
+				uint* addrs = inode_p->addrs;
 				int j;
 				for (j=0; j < (NDIRECT + 1); j++){
-					uint addr = addrs[j];
-					if ( addr != 0 && (addr < range_start || addr > range_end ) ){
+					//~ printf("%d\t", addrs[j]);
+					if ( !datablock_address_is_valid(addrs[j], &sb) ){
 						printf("ERROR: bad address in inode");
 						exit(1);
 					}
 				}
+				uint* indirect_block = (uint*) addrs[NDIRECT]; // pointer to a pseudo-pointer
+				int k;
+				for(k=0; k < NINDIRECT; k++){
+						//~ printf("%d\t", k);
+						
+						//~ printf("%d\t", indirect_block[k]); // why seg fault
+						
+					//~ if ( !datablock_address_is_valid( indirect_block[k], &sb) ){
+						//~ printf("ERROR: bad address in inode");
+						//~ exit(1);
+					//~ }
+				}
 			}
+			
+			// increment pointer
 			inode_p++;
 		}	
 	}
 	//~ uint ninodes = sb.ninodes; // number of inodes
 
-	//~ For in-use inodes, each address that is used by inode is valid (points to
-	//~ a valid datablock address within the image). Note: must check indirect
-	//~ blocks too, when they are in use. ERROR: bad address in inode.
+	//~ 
 	//~ Root directory exists, and it is inode number 1. ERROR MESSAGE:
 	//~ root directory does not exist.
 	//~ Each directory contains . and .. entries. ERROR: directory not
@@ -142,6 +165,13 @@ main(int argc, char *argv[]){
     
 }
 
+int datablock_address_is_valid(uint addr, struct superblock* sb){
+	uint range_start = sb->bmapstart+1; // byte number (ie address)
+	uint range_end = sb->size - 1;
+				
+	return addr == 0 || ( addr >= range_start && addr <= range_end ); 
+}
+
 int inode_is_valid_or_unalloc(short type){
 	return (type == T_FILE || type == T_DIR || type == T_DEV || type == 0);
 }
@@ -157,4 +187,18 @@ rsect(uint sec, void *buf)
     perror("read");
     exit(1);
   }
+}
+
+// inum = number of the inode, ip is pointer a struct dinode to put it in
+void
+rinode(uint inum, struct dinode *ip)
+{
+  char buf[BSIZE];
+  uint bn;
+  struct dinode *dip;
+
+  bn = IBLOCK(inum, sb);
+  rsect(bn, buf);
+  dip = ((struct dinode*)buf) + (inum % IPB);
+  *ip = *dip;
 }

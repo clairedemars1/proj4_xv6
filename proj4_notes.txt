@@ -1,3 +1,9 @@
+to check if an inode has .. and ., do I need to go to it's data blocks, even indirect data blocks
+
+for root direcotyr, do i just need to check it's a directory? 
+the inode 1 for me is unallocated, what's up?
+
+why am i seg faulting when checking indirect datablock addresses?
 
 ask nick what he meant about
 """I've found that pointer stuff is wonky
@@ -5,4 +11,3 @@ Like, memmove gave me stable results
 Instead of implicit struct copies"""
 
 ask them check my ranges
-

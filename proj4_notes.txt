@@ -1,0 +1,8 @@
+
+ask nick what he meant about
+"""I've found that pointer stuff is wonky
+Like, memmove gave me stable results
+Instead of implicit struct copies"""
+
+ask them check my ranges
+

@@ -45,6 +45,7 @@ void rsect(uint sec, void *buf);
 
 // end section
 
+int inode_is_valid_or_unalloc(short type);
 int fsfd; // stupid global variable
 
 int
@@ -65,27 +66,35 @@ main(int argc, char *argv[]){
 	uint block_num_of_first_inode = sb.inodestart;
 	uint block_num_just_after_inodes = sb.bmapstart;
 	uint i;
-	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ // for each block of inodes
+	
+	// for each block of inodes
+	for(i=block_num_of_first_inode; i< block_num_just_after_inodes; i++){ 
+		
+		// for each inode
 		char buf[BSIZE];
 		rsect(i, (void*) &buf);
 		struct dinode* inode_p = (struct dinode *) &buf;
-		//~ for( ; inode_p < (inode_p + IPB); inode_p++){ // for each inode // pointer arithmetic, does it work 
+		//~ for( ; inode_p < (inode_p + IPB); inode_p++){  // pointer arithmetic fails
 		short counter;
-		for(counter=0; counter < IPB; counter++){ // for each inode // pointer arithmetic, does it work 
-			//~ Each inode is either unallocated or one of the valid types (T_FILE, T_DIR, T_DEV). ERROR: bad inode.
+		for(counter=0; counter < IPB; counter++){ // for each inode 
 			short type = inode_p->type;
-			if (type == T_FILE ){
-				// for each direct data block (do indirects later)
-				// it is in the 
-				printf("file\t");
-			} else if (type == T_DEV || type == T_DIR ){
-				printf("dev/dir\t");
-			//~ } else if (type == 0){
-				//~ printf("0\t");
-			} else if (type != 0) {
-				printf("type: %d\t", type);
+			if ( !inode_is_valid_or_unalloc(type) ){
 				printf("ERROR: bad inode\n"); 
-				exit(1); 
+				exit(1);  
+			} else if ( type != 0 ) { // inode is valid and allocated
+				// 
+				uint range_start = sb.bmapstart+1; // byte number (ie address)
+				uint range_end = sb.size - 1;
+				
+				uint* addrs = inode_p->addrs; // length is NDIRECT + 1
+				int j;
+				for (j=0; j < (NDIRECT + 1); j++){
+					uint addr = addrs[j];
+					if ( addr != 0 && (addr < range_start || addr > range_end ) ){
+						printf("ERROR: bad address in inode");
+						exit(1);
+					}
+				}
 			}
 			inode_p++;
 		}	
@@ -133,6 +142,9 @@ main(int argc, char *argv[]){
     
 }
 
+int inode_is_valid_or_unalloc(short type){
+	return (type == T_FILE || type == T_DIR || type == T_DEV || type == 0);
+}
 // sec=sector number, buf=to
 void
 rsect(uint sec, void *buf)

@@ -48,7 +48,9 @@ void rsect(uint sec, void *buf);
 int inode_is_valid_or_unalloc(short type);
 int datablock_address_is_valid(uint addr, struct superblock* sb);
 void update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_per_dirents);
-	// based on the directory entries in the inodes
+void update_datablock_bitmap_per_inode_pointers(
+	uint datablock_num, struct dinode* inode_p, short* datablock_bitmap_per_inode_pointers);
+void check_datablock_address(uint address, short* datablock_bitmap_per_inode_pointers );
 
 int fsfd; 
 struct superblock sb;
@@ -57,7 +59,7 @@ char temp_buf[BSIZE];
 
 int
 main(int argc, char *argv[]){
-	uint* inode_ref_counts_per_dirents;
+	
 	
 	// check args
 	if(argc < 2){
@@ -70,13 +72,15 @@ main(int argc, char *argv[]){
 	assert(fsfd != -1);
 	
 	// initialize superblock
-	rsect(1, (void*) temp_buf); // 1 is block number 
+	rsect(1, (void*) temp_buf);
 	memmove( &sb, temp_buf, sizeof(sb) ); // keeps rsect from failing (as opposed to rsect(1, (void*) &sb);
-	//~ uint block_num_of_first_inode = sb.inodestart;
-	//~ uint block_num_just_after_inodes = sb.bmapstart;
 	
-	// setup checking structures
-	inode_ref_counts_per_dirents = (uint*) malloc(sb.ninodes* sizeof(uint));
+	// setup comparison structures based on superblock
+	short* datablock_bitmap_per_inode_pointers = (short*) malloc( sb.nblocks * sizeof(short) );
+	memset(datablock_bitmap_per_inode_pointers, 0, sb.nblocks); // intialize to 0
+	
+	uint* inode_ref_counts_per_dirents = (uint*) malloc(sb.ninodes* sizeof(uint));
+	memset(inode_ref_counts_per_dirents, 0, sb.ninodes);// initalize to 0
 	
 	// root directory 
 	struct dinode first_inode;
@@ -86,6 +90,7 @@ main(int argc, char *argv[]){
 		exit(1);
 	}
 	
+	// go through inodes
 	int i;
 	for( i=1; i<sb.ninodes; i++){ // start at 1 b/c inode 0 is not a thing
 		struct dinode inode;
@@ -113,28 +118,20 @@ main(int argc, char *argv[]){
 				//~ printf("unall\t");
 		//~ }
 		
-		// check data block addresses are valid
+		// for all types: check datablocks
 		// direct blocks
 		uint* addrs = inode.addrs;
 		int j;
 		for (j=0; j < (NDIRECT + 1); j++){
-			if ( !datablock_address_is_valid(addrs[j], &sb) ){
-				printf("ERROR: bad address in inode\n");
-				exit(1);
-			}
-			//~ printf("data block num %d\t", addrs[j]);
+			check_datablock_address( addrs[j], datablock_bitmap_per_inode_pointers );
 		}
 		// indirect blocks
 		uint indirect_block_num = (uint) addrs[NDIRECT]; // block number, not pointer
 		uint indir_block[BSIZE]; // char = 8 bits, uint = 4 bits
 		rsect(indirect_block_num, indir_block);
 		for(j=0; j < NINDIRECT; j++){
-			if ( !datablock_address_is_valid( indir_block[j], &sb) ){
-				printf("ERROR: bad address in inode\n");
-				exit(1);
-			}
+			check_datablock_address( indir_block[j], datablock_bitmap_per_inode_pointers );
 		}
-		/// end section: data blocks
 			
 		if( type == T_DIR ){
 			
@@ -146,7 +143,7 @@ main(int argc, char *argv[]){
 				update_inode_ref_counts_per_dirents(dirent_num, &inode, inode_ref_counts_per_dirents);
 			}
 		} // endif type == T_DIR
-	}
+	} // end of going through inodes 1st time
 	
 	//~ printf("ref counts\n");
 	//~ for (i=0; i<sb.ninodes; i++){
@@ -177,7 +174,6 @@ main(int argc, char *argv[]){
 			exit(1);
 		}
 	}
-	
 
 	//~ Each directory contains . and .. entries. ERROR: directory not
 	//~ properly formatted.
@@ -195,12 +191,6 @@ main(int argc, char *argv[]){
 
 	exit(0);
 	return 0;
-
-    //~ void* mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
-    //~ assert(mmappedData != MAP_FAILED);
-    //Write the mmapped data to stdout (= FD #1)
-    //~ write(1, mmappedData, 1000); // prints something, which is a good sign
-    
 }
 
 void update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_per_dirents){
@@ -219,7 +209,25 @@ void update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p
 	inode_ref_counts_per_dirents[ buf2[offset].inum ]++; // inode_ref_counts_per_dirents[0] gets a lot of increments, but there is no inode number 0 
 }
 
+void check_datablock_address(uint address, short* datablock_bitmap_per_inode_pointers ){
+	if (address == 0) return; // 0 just means there is no datablock
+	// in range
+	if ( !datablock_address_is_valid(address, &sb) ){
+		printf("ERROR: bad address in inode\n");
+		exit(1);
+	}
+	
+	// not used before (this part also stores info for later checks)
+	if (datablock_bitmap_per_inode_pointers[ address ]){ // if it's already set
+		printf("%d\n", address);
+		printf("ERROR: address used more than once.\n");
+		exit(1);
+	} else { // set it
+		datablock_bitmap_per_inode_pointers[ address ]++;
+	}
+}
 
+// "valid" in the sense of "in range"
 // "address" in the sense of block number, as opposed to a byte number
 int datablock_address_is_valid(uint addr, struct superblock* sb){
 	uint range_start = sb->bmapstart+1; // not byte number, block number

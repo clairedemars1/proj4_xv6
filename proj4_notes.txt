@@ -11,3 +11,16 @@ cd mydir
 ../echo "foo" > myfile.txt
 ../cat myfile.txt // to check it's content
 
+//~ switch(type){
+	//~ case T_FILE:
+		//~ printf("file\t");
+		//~ break;
+	//~ case T_DIR:
+		//~ printf("dir\t");
+		//~ break;
+	//~ case T_DEV:
+		//~ printf("dev\t");
+		//~ break;
+	//~ case 0:
+		//~ printf("unall\t");
+//~ }

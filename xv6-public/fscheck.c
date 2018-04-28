@@ -47,10 +47,11 @@ void rsect(uint sec, void *buf);
 
 int inode_is_valid_or_unalloc(short type);
 int datablock_address_is_valid(uint addr, struct superblock* sb);
-void update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_per_dirents);
+ushort update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_per_dirents);
 void update_datablock_bitmap_per_inode_pointers(
 	uint datablock_num, struct dinode* inode_p, short* datablock_bitmap_per_inode_pointers);
 void check_datablock_address(uint address, short* datablock_bitmap_per_inode_pointers );
+void get_dirent(struct dinode* parent, struct dirent* out_dirent, uint dirent_num);
 
 int fsfd; 
 struct superblock sb;
@@ -78,9 +79,11 @@ main(int argc, char *argv[]){
 	// setup comparison structures based on superblock
 	short* datablock_bitmap_per_inode_pointers = (short*) malloc( sb.nblocks * sizeof(short) );
 	memset(datablock_bitmap_per_inode_pointers, 0, sb.nblocks); // intialize to 0
+	memset(datablock_bitmap_per_inode_pointers, 1, (sb.size - sb.nblocks) ); // metablocks are in use
 	
 	uint* inode_ref_counts_per_dirents = (uint*) malloc(sb.ninodes* sizeof(uint));
 	memset(inode_ref_counts_per_dirents, 0, sb.ninodes);// initalize to 0
+	
 	
 	// root directory 
 	struct dinode first_inode;
@@ -96,29 +99,17 @@ main(int argc, char *argv[]){
 		struct dinode inode;
 		rinode(i, &inode);
 		 
+		// maybe exit early
 		short type = inode.type;
 		if ( !inode_is_valid_or_unalloc(type) ){
 			printf("ERROR: bad inode\n"); 
 			exit(1);  
-		} 
+		}
 		if (type == 0 ){
 			continue;
 		}
-		//~ switch(type){
-			//~ case T_FILE:
-				//~ printf("file\t");
-				//~ break;
-			//~ case T_DIR:
-				//~ printf("dir\t");
-				//~ break;
-			//~ case T_DEV:
-				//~ printf("dev\t");
-				//~ break;
-			//~ case 0:
-				//~ printf("unall\t");
-		//~ }
 		
-		// for all types: check datablocks
+		// for all allocated types: check datablocks
 		// direct blocks
 		uint* addrs = inode.addrs;
 		int j;
@@ -132,15 +123,42 @@ main(int argc, char *argv[]){
 		for(j=0; j < NINDIRECT; j++){
 			check_datablock_address( indir_block[j], datablock_bitmap_per_inode_pointers );
 		}
-			
+		
+		// handle directories
 		if( type == T_DIR ){
 			
-			// only look at as many dirents as size dictates
-			uint inode_size = inode.size;
+			// todo: put back
+			// really should call get dirent 0, 1
+			//~ char buf[BSIZE];
+			//~ rsect(inode.addrs[0], buf);
+			//~ struct dirent* buf2 = (struct dirent*) buf;
+			//~ if ( !strcmp(buf2[0].name, ".") || !strcmp(buf2[1].name, "..") ){
+				//~ printf("ERROR: directory not properly formatted.\n");
+			//~ }
+			
+			//~ Each .. entry in directory refers to the proper parent inode, and parent
+			//~ inode points back to it. ERROR: parent directory mismatch.
+			
+			uint inode_size = inode.size; // only look at as many dirents as size dictates
 			uint num_of_dir_entries = inode_size / sizeof(struct dirent); // int division is fine, since you can't store part of a dirent
 			uint dirent_num;
-			for (dirent_num=0; dirent_num < num_of_dir_entries; dirent_num++){
-				update_inode_ref_counts_per_dirents(dirent_num, &inode, inode_ref_counts_per_dirents);
+			for (dirent_num=0; dirent_num < num_of_dir_entries; dirent_num++){ // for each directory entry
+				// get reference counts
+				// todo: make a read directory entry function 
+				struct dirent entry;
+				get_dirent(&inode, &entry, dirent_num);
+				inode_ref_counts_per_dirents[ entry.inum ]++; // inode_ref_counts_per_dirents[0] gets a lot of increments, but there is no inode number 0 
+				
+				//~ ushort inum_of_dirent = update_inode_ref_counts_per_dirents(dirent_num, &inode, inode_ref_counts_per_dirents);
+				
+				// if they are directories too, make sure their .. goes back to this dir
+				struct dinode inode;
+				rinode(entry.inum, &inode);
+				if (inode.type == T_DIR){
+					
+				}
+				
+				
 			}
 		} // endif type == T_DIR
 	} // end of going through inodes 1st time
@@ -174,18 +192,15 @@ main(int argc, char *argv[]){
 			exit(1);
 		}
 	}
-
-	//~ Each directory contains . and .. entries. ERROR: directory not
-	//~ properly formatted.
-	//~ Each .. entry in directory refers to the proper parent inode, and parent
-	//~ inode points back to it. ERROR: parent directory mismatch.
+	
+	// use datablock stuff to check xv6's bitmap
+	// todo
 	//~ For in-use inodes, each address in use is also marked in use in the
 	//~ bitmap. ERROR: address used by inode but marked free in bitmap.
 	//~ For blocks marked in-use in bitmap, actually is in-use in an inode or
 	//~ indirect block somewhere. ERROR: bitmap marks block in use but it
 	//~ is not in use.
-	//~ For in-use inodes, any address in use is only used once. ERROR:
-	//~ address used more than once.
+
     
     close(fsfd);
 
@@ -193,7 +208,22 @@ main(int argc, char *argv[]){
 	return 0;
 }
 
-void update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_per_dirents){
+// dirent num relative to the other directory entries in that directory
+void get_dirent(struct dinode* parent, struct dirent* out_dirent, uint dirent_num){
+	// go to that dirent
+	uint num_entries_per_block = BSIZE/sizeof(struct dirent);
+	uint addrs_index = dirent_num/(num_entries_per_block);
+	char buf[BSIZE];
+	
+	rsect(parent->addrs[addrs_index], buf);
+	
+	uint offset = dirent_num % num_entries_per_block;
+	struct dirent* buf2 = (struct dirent*) buf;
+	*out_dirent = buf2[offset]; // hope this works
+}
+
+// return inum of the directory entry
+ushort update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p, uint* inode_ref_counts_per_dirents){
 	// go to that dirent
 	uint num_entries_per_block = BSIZE/sizeof(struct dirent);
 	uint addrs_index = dirent_num/(num_entries_per_block);
@@ -207,6 +237,9 @@ void update_inode_ref_counts_per_dirents(uint dirent_num, struct dinode* inode_p
 	// see which inode num it is pointing to
 	// ++ the ref count for that inode
 	inode_ref_counts_per_dirents[ buf2[offset].inum ]++; // inode_ref_counts_per_dirents[0] gets a lot of increments, but there is no inode number 0 
+	
+	return buf2[offset].inum;
+	
 }
 
 void check_datablock_address(uint address, short* datablock_bitmap_per_inode_pointers ){

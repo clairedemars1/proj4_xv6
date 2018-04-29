@@ -28,8 +28,8 @@ File System Checking
 		On the first time I check criteria 1. I go through all datablocks addresses, checking criteria 2 (valid address) and building a array of which datablocks are used. While building it, if a datablock is ever claimed to be used twice, I make an error, to meet criteria 8. If the inode is a dir, I go through all its directory entries, storing inode reference counts to use later, and checking criteria 4 and 5. 
 		The second time through I check criteria 9, 10, 11, 12 by comparing the inode reference counts from last time with the inode type (which indicates if it is inuse, for #9, and if it is a directory, for #12) and the inode nlink variable (for #10 and #11).
 	- The missing step would be to compare to the bitmap the datablocks array (from the first time through the inodes), comparing in both directions. 
-	- I tested my code in a limited way, by printing structures and making sure the basic fs.img didn't cause any errors
+	- I tested my code in a limited way, by printing relevant structures along the way and making sure the basic fs.img didn't cause any errors
 	
 File System Integrity - ensuring it
-
+	- 
 	

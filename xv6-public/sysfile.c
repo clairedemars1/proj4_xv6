@@ -254,6 +254,9 @@ create(char *path, short type, short major, short minor)
     ilock(ip);
     if(type == T_FILE && ip->type == T_FILE)
       return ip;
+    if(type == T_CHECKED && ip->type == T_CHECKED) // new
+      return ip; // new
+      
     iunlockput(ip);
     return 0;
   }

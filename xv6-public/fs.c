@@ -379,14 +379,24 @@ bmap(struct inode *ip, uint bn)
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr = balloc(ip->dev);
-    return addr;
-  }
+    
+    //~ return addr; // old
+    
+    // new
+	if (ip->type == T_CHECKED){
+		return addr && 0x00FFFFFF; // ignore checksum // uint is 4 bytes, there are 2 hex digits per byte
+	} else {
+		return addr; // just in case that file is so big it is using the high order byte
+	}
+  } // end if bn < NDIRECT
+  
   bn -= NDIRECT;
 
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
-    if((addr = ip->addrs[NDIRECT]) == 0)
+    if((addr = ip->addrs[NDIRECT]) == 0){
       ip->addrs[NDIRECT] = addr = balloc(ip->dev);
+	}
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
@@ -394,7 +404,14 @@ bmap(struct inode *ip, uint bn)
       log_write(bp);
     }
     brelse(bp);
-    return addr;
+    
+    //~ return addr; // old
+	if (ip->type == T_CHECKED){
+		return addr && 0x00FFFFFF; 
+	} else {
+		return addr;
+	}
+
   }
 
   panic("bmap: out of range");
@@ -470,8 +487,15 @@ readi(struct inode *ip, char *dst, uint off, uint n)
   for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
     m = min(n - tot, BSIZE - off%BSIZE);
+    // check the checksum
+    // if bad checksum, return -1
+    if ( compute_checksum(?) != get_stored_checksum(bp) ){
+		return -1;
+	}
     memmove(dst, bp->data + off%BSIZE, m);
-    brelse(bp);
+    
+    brelse(bp); // release the buffer
+
   }
   return n;
 }
@@ -497,18 +521,48 @@ writei(struct inode *ip, char *src, uint off, uint n)
     return -1;
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+    bp = bread(ip->dev, bmap(ip, off/BSIZE)); 
     m = min(n - tot, BSIZE - off%BSIZE);
-    memmove(bp->data + off%BSIZE, src, m);
+    memmove(bp->data + off%BSIZE, src, m); // writing to the in-memory inode
+	// update checksum of the datablock we just wrote
+	update_checksum(bp->data + off%BSIZE, off%BSIZE);
+	
     log_write(bp);
     brelse(bp);
   }
 
-  if(n > 0 && off > ip->size){
+  //~ if(n > 0 && off > ip->size){ // if we wrote anything and we added a new datablock
+  if(n > 0){ // if we wrote anything (since that changed the checksum)
     ip->size = off;
-    iupdate(ip);
+    iupdate(ip); // copy to disk
   }
   return n;
+}
+
+// bn is the block number ***relative to the array addrs, not to the fs as a whole*** (like bmap)
+void update_checksum(struct buf* spot_in_data, uint bn){
+	unsigned char* p;
+	if (bn < NDIRECT){
+		// work in the short array of addresses: addrs
+		// get that datablock & compute it's checksum
+		p = (unsigned char*) buf; // unsigned char is 1 byte
+	} else if (bn < NINDIRECT){
+		// work in the big datablock of addresses
+		// todo
+		// get the indirect block using a bmap
+		// find the address
+		// use the address and bmap to get the other block
+	}
+	uint checksum = 0;
+	int i;
+	for (i=0; i<BSIZE; i++){
+		checksum = checksum ^ p[i];
+	}
+	
+	// store the checksum in the highest byte of the value at addrs[bn]
+	uint address = CLEAR_TOP_BYTE( addrs[bn] );
+	address = address | (checksum << 24);
+	addrs[bn] = address;
 }
 
 //PAGEBREAK!

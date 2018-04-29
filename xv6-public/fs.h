@@ -55,3 +55,5 @@ struct dirent { // directory entry
   char name[DIRSIZ];
 };
 
+// assumes the address is a uint, ie 4 bytes
+#define CLEAR_TOP_BYTE(address) (address & 0x00FFFFFF)

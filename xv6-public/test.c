@@ -1,6 +1,7 @@
 #include "types.h"
 #include "pstat.h"
 #include "user.h"
+#include "fcntl.h"
 
 void assert(int claim){
 	if( !claim ){
@@ -89,11 +90,87 @@ void high_priority_runs_first(){
 	// failing test case: parent and child take turns running, implying scheduling did not happen
 }
 
-int main(){
-	return_vals();
-	set_priority_and_track_lticks_hticks();
-	set_priority_to_value_it_already_had();
-	high_priority_runs_first();
+void make_file(){
+	int fd = open("foo.txt", O_CREATE );
+	char* msg = "Hello";
+	int ret;
+	if ( ret = write(fd, msg, 6) != 6 ){
+		printf(1, "write failed: %d\n", ret);
+	}
+	char out[6];
+	read(fd, out, 6);
+	printf(1, "i read %s", out);
+	close(fd);
+}
 
+char buf[8192];
+int stdout=1;
+void
+writetest1(void)
+{
+  int i, fd, n;
+
+  printf(stdout, "big files test\n");
+
+  fd = open("big", O_CREATE|O_RDWR);
+  if(fd < 0){
+    printf(stdout, "error: creat big failed!\n");
+    exit();
+  }
+  int size = 10;
+  for(i = 0; i < size; i++){
+    ((int*)buf)[0] = i;
+    if(write(fd, buf, 512) != 512){
+      printf(stdout, "error: write big file failed\n", i);
+      exit();
+    }
+  }
+
+  close(fd);
+
+  fd = open("big", O_RDONLY);
+  if(fd < 0){
+    printf(stdout, "error: open big failed!\n");
+    exit();
+  }
+
+  n = 0;
+  for(;;){
+    i = read(fd, buf, 512);
+    if(i == 0){
+      if(n == size - 1){
+        printf(stdout, "read only %d blocks from big", n);
+        exit();
+      }
+      break;
+    } else if(i != 512){
+      printf(stdout, "read failed %d\n", i);
+      exit();
+    }
+    if(((int*)buf)[0] != n){
+      printf(stdout, "read content of block %d is %d\n",
+             n, ((int*)buf)[0]);
+      exit();
+    }
+    n++;
+  }
+  close(fd);
+  if(unlink("big") < 0){
+    printf(stdout, "unlink big failed\n");
+    exit();
+  }
+  printf(stdout, "big files ok\n");
+}
+
+int main(){
+	// testing scheduler
+	//~ return_vals();
+	//~ set_priority_and_track_lticks_hticks();
+	//~ set_priority_to_value_it_already_had();
+	//~ high_priority_runs_first();
+
+	// testing integrity
+	//~ make_file(); // couldn't get to work, even on an old project
+	writetest1(); 
 	exit();
 }

@@ -31,5 +31,7 @@ File System Checking
 	- I tested my code in a limited way, by printing relevant structures along the way and making sure the basic fs.img didn't cause any errors
 	
 File System Integrity - ensuring it
-	- 
+	- fcnlt.h added flag 
+	- sysfile.c updated sysfile.c, open() to check for flag
+	
 	

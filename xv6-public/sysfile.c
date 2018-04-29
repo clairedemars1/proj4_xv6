@@ -242,7 +242,7 @@ static struct inode*
 create(char *path, short type, short major, short minor)
 {
   uint off;
-  struct inode *ip, *dp;
+  struct inode *ip, *dp; // me: inode pointer and dinode pointer
   char name[DIRSIZ];
 
   if((dp = nameiparent(path, name)) == 0)
@@ -297,10 +297,15 @@ sys_open(void)
   begin_op();
 
   if(omode & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
-    if(ip == 0){
-      end_op();
-      return -1;
+		if (omode & O_CHECKED){
+			ip = create(path, T_CHECKED, 0, 0);
+		} else {
+			ip = create(path, T_FILE, 0, 0);
+		}
+		if(ip == 0){
+		  end_op();
+		  return -1;
+		}
     }
   } else {
     if((ip = namei(path)) == 0){

@@ -280,3 +280,5 @@ rinode(uint inum, struct dinode *ip)
   dip = ((struct dinode*)buf) + (inum % IPB);
   *ip = *dip;
 }
+
+

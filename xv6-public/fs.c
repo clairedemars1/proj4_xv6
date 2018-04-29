@@ -464,6 +464,36 @@ stati(struct inode *ip, struct stat *st)
   st->size = ip->size;
 }
 
+// bn is the block number ***relative to the inode, not to the fs as a whole*** (like bmap)
+void update_checksum(struct buf* spot_in_data, uint bn){
+	unsigned char* p;
+	if (bn < NDIRECT){
+		// work in the short array of addresses: addrs
+		// get that datablock & compute it's checksum
+		p = (unsigned char*) buf; // unsigned char is 1 byte
+	} else if (bn < NINDIRECT){
+		// work in the big datablock of addresses
+		// todo
+		// get the indirect block using a bmap
+		// find the address
+		// use the address and bmap to get the other block
+	}
+	uint checksum = 0;
+	int i;
+	for (i=0; i<BSIZE; i++){
+		checksum = checksum ^ p[i];
+	}
+	
+	// store the checksum in the highest byte of the value at addrs[bn]
+	uint address = CLEAR_TOP_BYTE( addrs[bn] );
+	address = address | (checksum << 24);
+	addrs[bn] = address;
+}
+
+usigned char get_stored_checksum(uint address){
+	return ( address << 24 );
+}
+
 //PAGEBREAK!
 // Read data from inode.
 // Caller must hold ip->lock.
@@ -489,7 +519,8 @@ readi(struct inode *ip, char *dst, uint off, uint n)
     m = min(n - tot, BSIZE - off%BSIZE);
     // check the checksum
     // if bad checksum, return -1
-    if ( compute_checksum(?) != get_stored_checksum(bp) ){
+    if ( compute_checksum(bp) != get_stored_checksum(ip->addrs[off/BSIZE]) ){
+		printf("checksums didn't match during a read\n");
 		return -1;
 	}
     memmove(dst, bp->data + off%BSIZE, m);
@@ -525,7 +556,8 @@ writei(struct inode *ip, char *src, uint off, uint n)
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(bp->data + off%BSIZE, src, m); // writing to the in-memory inode
 	// update checksum of the datablock we just wrote
-	update_checksum(bp->data + off%BSIZE, off%BSIZE);
+	uint bn_rel_to_inode = off%BSIZE;
+	update_checksum(bp->data + off%BSIZE, bn_rel_to_inode);
 	
     log_write(bp);
     brelse(bp);
@@ -537,32 +569,6 @@ writei(struct inode *ip, char *src, uint off, uint n)
     iupdate(ip); // copy to disk
   }
   return n;
-}
-
-// bn is the block number ***relative to the array addrs, not to the fs as a whole*** (like bmap)
-void update_checksum(struct buf* spot_in_data, uint bn){
-	unsigned char* p;
-	if (bn < NDIRECT){
-		// work in the short array of addresses: addrs
-		// get that datablock & compute it's checksum
-		p = (unsigned char*) buf; // unsigned char is 1 byte
-	} else if (bn < NINDIRECT){
-		// work in the big datablock of addresses
-		// todo
-		// get the indirect block using a bmap
-		// find the address
-		// use the address and bmap to get the other block
-	}
-	uint checksum = 0;
-	int i;
-	for (i=0; i<BSIZE; i++){
-		checksum = checksum ^ p[i];
-	}
-	
-	// store the checksum in the highest byte of the value at addrs[bn]
-	uint address = CLEAR_TOP_BYTE( addrs[bn] );
-	address = address | (checksum << 24);
-	addrs[bn] = address;
 }
 
 //PAGEBREAK!
